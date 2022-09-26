@@ -1,0 +1,55 @@
+#***
+#Set LoginID value for specific account of interest
+#Provide destination path 
+$path = Split-Path -parent "C:\Users\***\Desktop\*.*"
+#***
+
+#Create a variable for the date stamp in the log file
+$LogDate = get-date -f yyyyMMddhhmm
+
+#Define CSV and log file location variables
+#they have to be on the same location as the script
+$csvfile = $path + "\ALLADUsers_$logDate.csv"
+
+#import the ActiveDirectory Module
+Import-Module ActiveDirectory
+
+#***
+#Sets the OU to do the base search for all user accounts, change as required.
+#Simon discovered that some users were missing
+#I decided to run the report from the root of the domain
+#OU=Users,
+#Fill in DC Domain 
+$SearchBase = "DC=DomainName,DC=local"
+#***
+
+#Get Admin accountb credential
+
+$GetAdminact = Get-Credential
+
+#***
+#Define variable for a server with AD web services installed
+#Change AD Server Name 
+$ADServer = 'DCSERVER'
+#***
+
+$AllADUsers = Get-ADUser -server $ADServer `
+-Credential $GetAdminact -searchbase $SearchBase `
+-Filter * -Properties * | Where-Object {$_.info -NE 'Migrated'} #ensures that updated users are never exported.
+
+$AllADUsers |
+Select-Object @{Label = "First Name";Expression = {$_.GivenName}},
+@{Label = "Last Name";Expression = {$_.Surname}},
+@{Label = "Display Name";Expression = {$_.DisplayName}},
+@{Label = "Logon Name";Expression = {$_.sAMAccountName}},
+@{Label = "Job Title";Expression = {$_.Title}},
+@{Label = "Descrption";Expression = {$_.Description}},
+@{Label = "Department";Expression = {$_.Department}},
+@{Label = "Email";Expression = {$_.Mail}},
+@{Label = "Manager";Expression = {%{(Get-AdUser $_.Manager -server $ADServer -Properties DisplayName).DisplayName}}},
+@{Label = "Account Status";Expression = {if (($_.Enabled -eq 'TRUE')  ) {'Enabled'} Else {'Disabled'}}}, # the 'if statement# replaces $_.Enabled
+@{Label = "Last LogOn Date";Expression = {$_.lastlogondate}} | 
+
+#Export CSV report
+
+Export-Csv -Path $csvfile -NoTypeInformation
